@@ -1,3 +1,5 @@
+default_app_config = 'telebot.apps.LoggerConfig'
+
 LOG_LEVEL_NONE = 0
 LOG_LEVEL_ALL = 1
 LOG_LEVEL_ERRORS = 2

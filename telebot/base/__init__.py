@@ -1,6 +1,8 @@
 import importlib
 from django.conf import settings
 
+default_app_config = 'telebot.apps.BaseConfig'
+
 ENGINES_LIST = getattr(settings, 'TELEBOT_ENGINES', {'telegram': 'telebot.engines.telegram'})
 ENGINES = {}
 

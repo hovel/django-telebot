@@ -6,11 +6,13 @@ from abc import ABC, abstractmethod
 from django.contrib.auth.models import User
 from django.conf import settings
 from telebot.base.models import UserLink, Bot
-from telebot.helpers import log_system_event
+from telebot.helpers import log_system_event, log_message
+from telebot.logger import FROM_USER
 
 logger = logging.getLogger('telebot.engine')
 
 USER_REGISTER_CALLBACK = getattr(settings, 'USER_REGISTER_CALLBACK', None)
+TELEBOT_REGISTER_ON_INCOMING = getattr(settings, 'TELEBOT_REGISTER_ON_INCOMING', True)
 
 if type(USER_REGISTER_CALLBACK) == str:
     USER_REGISTER_CALLBACK = importlib.import_module(USER_REGISTER_CALLBACK)
@@ -28,35 +30,24 @@ class AbstractEngine(ABC):
         self.bot_obj = bot
 
     @abstractmethod
-    def _send_message(self, link, message: str, kwgs: dict=None) -> bool:
+    def _send_message(self, link, text: str, **kwargs) -> bool:
         pass
 
-    @singledispatchmethod
-    def send_message(self, user, message: str, kwgs: dict=None) -> bool:
-        raise NotImplementedError('Can not send message to unknown user type, \
+    def send_message(self, user=None, text: str='', chat_id=None, **kwargs) -> bool:
+        if (not user) and (not chat_id):
+            raise AttributeError('Either user or chat_id should be provided for "send_message"')
+        if chat_id:
+            link = UserLink.objects.filter(chat_id=chat_id, bot=self.bot_obj).first()
+        elif type(user)==int:
+            link = UserLink.objects.filter(chat_id=user, bot=self.bot_obj).first()
+        elif type(user)==User:
+            link = UserLink.objects.filter(user=user, bot=self.bot_obj).first()
+        elif type(user)==UserLink:
+            link = user
+        else:
+            raise NotImplementedError('Can not send message to unknown user type, \
              can send only to: chat_id, django.contrib.auth.models.User or telebot.base.modes.UserLink')
-
-    @send_message.register
-    def _(self, user: int, message: str, kwgs: dict=None) -> bool:
-        # Send message using user chat_id
-        link = UserLink.objects.filter(chat_id=user).first()
-        if not link:
-           raise ValueError(f'UserLink with chat_id {user} was not found')
-        return self.send_message(link, message, kwgs)
-      
-    @send_message.register
-    def _(self, user: User, message: str, kwgs: dict=None) -> bool:
-        link = UserLink.objects.filter(user=user).first()
-        if not link:
-           raise ValueError(f'UserLink with chat_id {user} was not found')
-        return self.send_message(link, message, kwgs)
-    
-    @send_message.register
-    def _(self, user: UserLink, message: str, kwgs: dict=None) -> bool:
-        if kwgs and type(kwgs)!=dict:
-            raise TypeError('Keyword arguments for send message should be dictionary')
-        kwargs = kwgs or {}
-        self._send_message(user, message, kwgs)
+        self._send_message(link, text, **kwargs)
 
     def register_user(self, chat_id: str) -> UserLink:
         link = UserLink.objects.filter(bot=self.bot_obj, chat_id=chat_id).first()
@@ -74,3 +65,13 @@ class AbstractEngine(ABC):
         link = UserLink.objects.create(user=user, bot=self.bot_obj, chat_id=chat_id)
         if USER_REGISTER_CALLBACK:
            USER_REGISTER_CALLBACK(self, chat_id)
+        return link
+
+    def log_incoming(self, chat_id, message: str, addional_info: str='') -> None:
+        link = UserLink.objects.filter(bot=self.bot_obj, chat_id=chat_id).first()
+        if not link:
+            if TELEBOT_REGISTER_ON_INCOMING:
+                link = self.register_user(chat_id)
+            else:
+                raise ValueError(f'Link for chat_id {chat_id} and bot {self.bot_obj.id} was not found')
+        log_message(link, message, FROM_USER, success=True, addional_info=addional_info)

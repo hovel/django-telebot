@@ -17,7 +17,8 @@ def log_message(user_link, message, direction, success, error=None, message_id=N
     MessageLogRecord.objects.create(
         link=user_link, message=message,
         direction=direction, success=success,
-        error=error, date=datetime.now()
+        error=error, date=datetime.now(),
+        addional_info=addional_info,
         )
     return
 

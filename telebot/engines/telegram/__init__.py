@@ -2,6 +2,7 @@ import json
 from traceback import format_exc
 from functools import partial, singledispatchmethod
 from telegram import Bot as TGBot
+from telegram import ReplyKeyboardMarkup
 from telegram.error import (TelegramError, Unauthorized, BadRequest, 
                             TimedOut, ChatMigrated, NetworkError)
 
@@ -19,14 +20,16 @@ class Engine(AbstractEngine):
         self.bot = TGBot(bot.token)
         super().__init__(bot)
 
-    def _send_message(self, link, message: str, kwgs: dict=None) -> bool:
-        if kwgs is None:
-            kwgs = {}
-        log_partial = partial(log_message, user_link=link, direction=FROM_BOT, message=message, addional_info=json.dumps(kwgs))
+    def _send_message(self, link, text: str, **kwargs) -> bool:
+        ai = ''
+        # Log reply keyboard if provided
+        if 'reply_markup' in kwargs:
+            ai += json.dumps(kwargs['reply_markup'].keyboard)
+        log_partial = partial(log_message, user_link=link, direction=FROM_BOT, message=text, addional_info=ai)
         if not link.active:
             log_partial(success=False, error='UserLink not active')
         try:
-            message = self.bot.send_message(link.chat_id, message, **kwgs)
+            message = self.bot.send_message(link.chat_id, text, **kwargs)
         except Unauthorized:
             link.active = False
             link.save()
