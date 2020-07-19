@@ -23,7 +23,7 @@ class Engine(AbstractEngine):
     def _send_message(self, link, text: str, **kwargs) -> bool:
         ai = ''
         # Log reply keyboard if provided
-        if ('reply_markup' in kwargs) and kwargs['reply_markup']:
+        if ('reply_markup' in kwargs) and hasattr(kwargs['reply_markup'], 'reply_markup'):
             ai += json.dumps(kwargs['reply_markup'].keyboard)
         log_partial = partial(log_message, user_link=link, direction=FROM_BOT, message=text, addional_info=ai)
         if not link.active:
