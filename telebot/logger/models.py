@@ -10,7 +10,7 @@ class MessageLogRecord(models.Model):
     date = models.DateTimeField(db_index=True)
     message = models.TextField(default='')
     success = models.BooleanField(default=True)
-    error = models.CharField(max_length=500, null=True)
+    error = models.TextField(null=True)
     message_id = models.IntegerField(null=True)
     addional_info = models.CharField(max_length=500, null=True)
 
