@@ -28,6 +28,8 @@ class AbstractEngine(ABC):
     @abstractmethod
     def __init__(self, bot: Bot):
         self.bot_obj = bot
+        self.register_on_send = True
+        self.relink_by_chat_id = True
 
     @abstractmethod
     def _send_message(self, link, text: str, **kwargs) -> bool:
@@ -38,15 +40,24 @@ class AbstractEngine(ABC):
             raise AttributeError('Either user or chat_id should be provided for "send_message"')
         if chat_id:
             link = UserLink.objects.filter(chat_id=chat_id, bot=self.bot_obj).first()
+        elif type(user)==str:
+            link = UserLink.objects.filter(chat_id=user, bot=self.bot_obj).first()
+            chat_id = user
         elif type(user)==int:
             link = UserLink.objects.filter(chat_id=user, bot=self.bot_obj).first()
+            chat_id = str(user)
         elif type(user)==User:
             link = UserLink.objects.filter(user=user, bot=self.bot_obj).first()
         elif type(user)==UserLink:
             link = user
         else:
-            raise NotImplementedError('Can not send message to unknown user type, \
-             can send only to: chat_id, django.contrib.auth.models.User or telebot.base.modes.UserLink')
+            raise NotImplementedError(f'Can not send message to unknown user type, \
+             can send only to: chat_id, django.contrib.auth.models.User or telebot.base.modes.UserLink, \
+                 got {type(user)} type')
+        if (not link) and (self.register_on_send) and (chat_id):
+            link = self.register_user(chat_id)
+        if not link:
+            raise ValueError(f'Trying to send to user {user} but can\'t get chat_id')
         self._send_message(link, text, **kwargs)
 
     def register_user(self, chat_id: str) -> UserLink:
@@ -56,12 +67,13 @@ class AbstractEngine(ABC):
             return link
         u_name = chat_id
         user = User.objects.filter(username=chat_id).first()
-        if user:
+        if user and (not self.relink_by_chat_id):
             # User with username chat_id already exist
             # Create new user with uuid4 username
             logger.warning(f'User with username {u_name} like chat_id already exists. Creating new with uuid4 username')
             u_name = uuid4()
-        user = User.objects.create_user(username=u_name)
+        if not user:
+            user = User.objects.create_user(username=u_name)
         link = UserLink.objects.create(user=user, bot=self.bot_obj, chat_id=chat_id)
         if USER_REGISTER_CALLBACK:
            USER_REGISTER_CALLBACK(self, chat_id)
