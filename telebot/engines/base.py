@@ -80,6 +80,8 @@ class AbstractEngine(ABC):
         return link
 
     def log_incoming(self, chat_id, message: str, addional_info: str='') -> None:
+        if message is None:
+            message = ''
         link = UserLink.objects.filter(bot=self.bot_obj, chat_id=chat_id).first()
         if not link:
             if TELEBOT_REGISTER_ON_INCOMING:
